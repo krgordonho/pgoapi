@@ -151,14 +151,28 @@ def main():
     # rest of pokemon
     extras = list(set(pokemon) - set(best))
     
-    print('------------Highest IV pokemon------------')
-    print('{0:<20} {1:<15} {2:<15}'.format('[pokemon]','[cp]','[iv]'))
+    print('------------Highest IV Pokemon------------')
+    print('{0:<10} {1:<6} {2:<10}'.format('[pokemon]','[cp]','[iv]'))
     for p in best:
-        print('{0:<20} {1:<15} {2:<8.2%}'.format(str(p.name),str(p.cp),p.ivPercent))
-    print('------------To be transfered------------')
+        print('{0:<10} {1:<6} {2:<8.2%}'.format(str(p.name),str(p.cp),p.ivPercent))
+    print('------------May be transfered------------')
+    print('{0:<10} {1:<6} {2:<10}'.format('[pokemon]','[cp]','[iv]'))
     for p in extras:
-        print('{0:<20} {1:<15} {2:<8.2%}'.format(str(p.name),str(p.cp),p.ivPercent))
-        
+        print('{0:<10} {1:<6} {2:<8.2%}'.format(str(p.name),str(p.cp),p.ivPercent))
+    
+    uniques = get_unique_counts(pokemon)
+    evolves = get_evolve_counts(pokemon)
+    needed = get_needed_counts(pokemon, uniques, evolves)
+    print('------------Available evolutions------------')
+    print('{0:<10} {1:<25} {2:<10} {3:<10}'.format('[pokemon]','[# of evolutions possible]','[# in inventory]','[# needed]'))
+    for p in pokemon:
+        id = str(p.number)
+        if id in needed.keys():			
+            print('{0:<10} {1:<5} {2:<5} {3:<5}'.format(str(p.name),evolves[id],uniques[id],needed[id]))
+	
+	# evolve as many as possible
+	
+	
     # release extras
     if config.clean:
         for p in extras:
@@ -167,17 +181,57 @@ def main():
             api.call()
             time.sleep(10)
 
+def get_needed_counts(pokemon, uniques, evolves):
+    needed = dict()
+    for p in pokemon:
+        if str(p.number) in evolves and str(p.number) in uniques: #should always be true...
+           needed[str(p.number)] = evolves[str(p.number)] - uniques[str(p.number)]
+    return needed
+    
+def get_unique_counts(pokemon):
+    uniques = dict()
+    for p in pokemon:
+        if (str(p.number) == str(p.family)):
+           if str(p.number) in uniques:
+                uniques[str(p.number)] = uniques[str(p.number)] + 1
+           else:
+                uniques[str(p.number)] = 1
+    return uniques
+				
+def get_evolve_counts(pokemon):
+    evolves = dict()
+    for p in pokemon:
+        if str(p.number) == str(p.family) and str(p.number) not in evolves and hasattr(p,'cost'):
+            extraCandy = (p.candy/p.cost)*2 #we get 2 everytime we evolve (evol + transfer)
+            totalCandy = p.candy + extraCandy
+            while extraCandy/p.cost >= 1:
+                totalCandy += 2 #2 more for every evolve we get from extras
+                extraCandy = (extraCandy/p.cost) + 2
+            if totalCandy/p.cost > 0:
+                evolves[str(p.number)] = totalCandy/p.cost
+    return evolves
+
 def get_pokemon(response_dict):
     data = []
+    candy = []
     
     with open('names.tsv') as f:
         f.readline()
         names = dict(csv.reader(f, delimiter='\t'))
+        
+    with open('families.tsv') as f:
+        f.readline()
+        families = dict(csv.reader(f, delimiter='\t'))
+        
+    with open('evolves.tsv') as f:
+        f.readline()
+        evolves = dict(csv.reader(f, delimiter='\t'))
     
     def _add_node(node):
         pok = type('',(),{})
         pok.id = node["id"]
         pok.name = names[str(node["pokemon_id"])]
+        pok.family = families[str(node["pokemon_id"])]
         pok.number = node["pokemon_id"]
         pok.stamina = node["individual_stamina"] if "individual_stamina" in node else 0
         pok.attack = node["individual_attack"] if "individual_attack" in node else 0
@@ -185,7 +239,20 @@ def get_pokemon(response_dict):
         pok.iv = ((pok.stamina + pok.attack + pok.defense) / float(45))*100
         pok.ivPercent = pok.iv/100
         pok.cp = node["cp"]
+        if int(evolves[str(pok.number)]) > 0:
+			pok.cost = int(evolves[str(pok.number)])
         data.append(pok)
+    
+    def _add_candy(node):
+        if "candy" in node:
+            candy.append((str(node["family_id"]),node["candy"]))
+        else:
+            candy.append((str(node["family_id"]),0))
+    
+    def _find_candy(node):
+        try: _add_candy(node["pokemon_family"])
+        except KeyError: pass
+        return node
 	
     def _find_node(node):
         try: _add_node(node["pokemon_data"])
@@ -193,6 +260,11 @@ def get_pokemon(response_dict):
         return node
     
     json.loads(json.dumps(response_dict), object_hook=_find_node)
+    json.loads(json.dumps(response_dict), object_hook=_find_candy)
+    candy = dict(candy)
+    for d in data:
+        d.candy = candy[str(d.family)]
+    
     return data
 
 def get_best_pokemon(pokemon, ivmin):
