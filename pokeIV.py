@@ -80,6 +80,7 @@ def init_config():
     parser.add_argument("-ed", "--evolution_delay", help="delay between evolutions in seconds")
     parser.add_argument("-td", "--transfer_delay", help="delay between transfers in seconds")
     parser.add_argument("-hm", "--hard_minimum", help="transfer candidates will be selected if they are below minimumIV (will transfer unique pokemon)", action="store_true")
+    parser.add_argument("-cp", "--cp_override", help="will keep pokemon that have CP equal to or above the given limit, regardless of IV")
     parser.set_defaults(DEBUG=False, TEST=False, EVOLVE=False)
     config = parser.parse_args()
 	  
@@ -305,7 +306,7 @@ def get_above_iv(pokemon, ivmin):
 def get_best_pokemon(pokemon, ivmin):
     if len(pokemon) == 0:
         return []
-    
+
     best = []
     
     #sort by iv
@@ -315,7 +316,10 @@ def get_best_pokemon(pokemon, ivmin):
         if not any(x.number == p.number for x in best):
             best.append(p)
         #if it passes the minimum iv test
-        elif p.iv >= float(ivmin):			
+        elif p.iv >= float(ivmin):
+            best.append(p)
+        #if cp_override is set, check CP
+        elif config.cp_override is not None and int(p.cp) >= int(cp_override):
             best.append(p)
 
     return best
