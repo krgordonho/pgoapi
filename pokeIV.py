@@ -102,7 +102,7 @@ def init_config():
     if config.__dict__["evolution_delay"] is None:
         config.__dict__["evolution_delay"] = "25"
     if config.__dict__["transfer_delay"] is None:
-		config.__dict__["transfer_delay"] = "10"
+        config.__dict__["transfer_delay"] = "10"
 
     return config
 	
@@ -133,8 +133,8 @@ def main():
     # all pokemon_data entries
     pokemon = get_pokemon(response_dict)
     if len(pokemon) == 0:
-		print('You have no pokemon...')
-		return
+        print('You have no pokemon...')
+        return
     # highest IV pokemon
     best = get_best_pokemon(pokemon, float(config.minimumIV))
     # rest of pokemon
@@ -259,7 +259,7 @@ def get_pokemon(response_dict):
         pok.ivPercent = pok.iv/100
         pok.cp = node["cp"]
         if int(evolves[str(pok.number)]) > 0:
-			pok.cost = int(evolves[str(pok.number)])
+            pok.cost = int(evolves[str(pok.number)])
         data.append(pok)
     
     def _add_candy(node):
