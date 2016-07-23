@@ -99,6 +99,7 @@ def init_config():
     parser.add_argument("-p", "--password", help="Password")
     parser.add_argument("-c", "--clean", help="Transfers all but the highest of each pokemon (see -ivmin)", action="store_true")
     parser.add_argument("-m", "--min", help="All pokemon equal to or above this IV value are kept regardless of duplicates")
+    parser.add_argument("-e", "--evolve", help="Evolves as many T1 pokemon that it can (starting with highest IV)", action="store_true")
     parser.set_defaults(DEBUG=False, TEST=False)
     config = parser.parse_args()
 
@@ -151,11 +152,11 @@ def main():
     # rest of pokemon
     extras = list(set(pokemon) - set(best))
     
-    print('------------Highest IV Pokemon------------')
+    print('{0:<15} {1:^20} {2:>15}'.format('------------','Highest IV Pokemon','------------'))
     print('{0:<10} {1:<6} {2:<10}'.format('[pokemon]','[cp]','[iv]'))
     for p in best:
         print('{0:<10} {1:<6} {2:<8.2%}'.format(str(p.name),str(p.cp),p.ivPercent))
-    print('------------May be transfered------------')
+    print('{0:<15} {1:^20} {2:>15}'.format('------------','May be transfered','------------'))
     print('{0:<10} {1:<6} {2:<10}'.format('[pokemon]','[cp]','[iv]'))
     for p in extras:
         print('{0:<10} {1:<6} {2:<8.2%}'.format(str(p.name),str(p.cp),p.ivPercent))
@@ -163,20 +164,37 @@ def main():
     uniques = get_unique_counts(pokemon)
     evolves = get_evolve_counts(pokemon)
     needed = get_needed_counts(pokemon, uniques, evolves)
-    print('------------Available evolutions------------')
+    print('{0:<15} {1:^20} {2:>15}'.format('------------','Available evolutions','------------'))
+    print('{0:<15} {1:^20} {2:>15}'.format('------------','TOTAL: '+str(evolves["total"])+' / 80','------------'))
     print('{0:<10} {1:<25} {2:<10} {3:<10}'.format('[pokemon]','[# of evolutions possible]','[# in inventory]','[# needed]'))
     for p in pokemon:
         id = str(p.number)
-        if id in needed.keys():			
+        if id in evolves.keys():			
             print('{0:<10} {1:<5} {2:<5} {3:<5}'.format(str(p.name),evolves[id],uniques[id],needed[id]))
 	
-	# evolve as many as possible
-	
+	# evolve all t1 pokemon
+    if config.evolve:
+        #sort by iv
+        pokemon.sort(key=lambda x: x.iv, reverse=True)
+        evolved = True
+        while evolved:
+            evolved = False
+            for p in pokemon[:]:
+                id = str(p.number)
+                if id in evolves.keys() and (evolves[id] - needed[id]) > 0:
+                    print('{0:<30} {1:<5} {2:<8.2%}'.format('evolving pokemon: '+str(p.name),str(p.cp),p.ivPercent))
+                    api.evolve_pokemon(pokemon_id = p.id)
+                    api.call()
+                    evolves[id] = evolves[id] - 1
+                    uniques[id] = uniques[id] - 1
+                    pokemon.remove(p)
+                    evolved = True
+                    time.sleep(25)
 	
     # release extras
     if config.clean:
         for p in extras:
-            print('{0:<30} {1:<15} {2:<8.2%}'.format('removing pokemon: '+str(p.name),str(p.cp),p.ivPercent))
+            print('{0:<30} {1:<5} {2:<8.2%}'.format('removing pokemon: '+str(p.name),str(p.cp),p.ivPercent))
             api.release_pokemon(pokemon_id = p.id)
             api.call()
             time.sleep(10)
@@ -184,10 +202,10 @@ def main():
 def get_needed_counts(pokemon, uniques, evolves):
     needed = dict()
     for p in pokemon:
-        if str(p.number) in evolves and str(p.number) in uniques: #should always be true...
+        if str(p.number) in evolves and str(p.number) in uniques:
            needed[str(p.number)] = evolves[str(p.number)] - uniques[str(p.number)]
     return needed
-    
+
 def get_unique_counts(pokemon):
     uniques = dict()
     for p in pokemon:
@@ -200,6 +218,7 @@ def get_unique_counts(pokemon):
 				
 def get_evolve_counts(pokemon):
     evolves = dict()
+    total = 0
     for p in pokemon:
         if str(p.number) == str(p.family) and str(p.number) not in evolves and hasattr(p,'cost'):
             extraCandy = (p.candy/p.cost)*2 #we get 2 everytime we evolve (evol + transfer)
@@ -209,6 +228,8 @@ def get_evolve_counts(pokemon):
                 extraCandy = (extraCandy/p.cost) + 2
             if totalCandy/p.cost > 0:
                 evolves[str(p.number)] = totalCandy/p.cost
+                total += totalCandy/p.cost
+    evolves["total"] = total
     return evolves
 
 def get_pokemon(response_dict):
@@ -227,7 +248,7 @@ def get_pokemon(response_dict):
         f.readline()
         evolves = dict(csv.reader(f, delimiter='\t'))
     
-    def _add_node(node):
+    def _add_pokemon(node):
         pok = type('',(),{})
         pok.id = node["id"]
         pok.name = names[str(node["pokemon_id"])]
@@ -248,19 +269,15 @@ def get_pokemon(response_dict):
             candy.append((str(node["family_id"]),node["candy"]))
         else:
             candy.append((str(node["family_id"]),0))
-    
-    def _find_candy(node):
-        try: _add_candy(node["pokemon_family"])
-        except KeyError: pass
-        return node
 	
     def _find_node(node):
-        try: _add_node(node["pokemon_data"])
+        try: _add_pokemon(node["pokemon_data"])
+        except KeyError: pass
+        try: _add_candy(node["pokemon_family"])
         except KeyError: pass
         return node
     
     json.loads(json.dumps(response_dict), object_hook=_find_node)
-    json.loads(json.dumps(response_dict), object_hook=_find_candy)
     candy = dict(candy)
     for d in data:
         d.candy = candy[str(d.family)]
