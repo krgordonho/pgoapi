@@ -165,7 +165,7 @@ def main():
     evolves = get_evolve_counts(pokemon)
     needed = get_needed_counts(pokemon, uniques, evolves)
     print('{0:<15} {1:^20} {2:>15}'.format('------------','Available evolutions','------------'))
-    print('{0:<15} {1:^20} {2:>15}'.format('------------','TOTAL: '+str(evolves["total"])+' / 80','------------'))
+    print('{0:<15} {1:^20} {2:>15}'.format('------------','TOTAL: '+str(evolves["total"])+' / 70','------------'))
     print('{0:<10} {1:<25} {2:<10} {3:<10}'.format('[pokemon]','[# of evolutions possible]','[# in inventory]','[# needed]'))
     for p in pokemon:
         id = str(p.number)
@@ -177,7 +177,8 @@ def main():
         #sort by iv
         pokemon.sort(key=lambda x: x.iv, reverse=True)
         evolved = True
-        while evolved:
+        count = 0
+        while evolved and count < 70:
             evolved = False
             for p in pokemon[:]:
                 id = str(p.number)
@@ -189,6 +190,7 @@ def main():
                     uniques[id] = uniques[id] - 1
                     pokemon.remove(p)
                     evolved = True
+                    count += 1
                     time.sleep(25)
 	
     # release extras
