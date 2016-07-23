@@ -1,28 +1,4 @@
 #!/usr/bin/env python
-"""
-pgoapi - Pokemon Go API
-Copyright (c) 2016 tjado <https://github.com/tejado>
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
-DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
-OR OTHER DEALINGS IN THE SOFTWARE.
-
-Author: tjado <https://github.com/tejado>
-"""
 
 import os
 import re
@@ -163,25 +139,27 @@ def main():
     best = get_best_pokemon(pokemon, float(config.minimumIV))
     # rest of pokemon
     extras = list(set(pokemon) - set(best))
-    
-    print('{0:<15} {1:^20} {2:>15}'.format('------------','Highest IV Pokemon','------------'))
-    print('{0:<10} {1:<6} {2:<10}'.format('[pokemon]','[cp]','[iv]'))
-    for p in best:
-        print('{0:<10} {1:<6} {2:<8.2%}'.format(str(p.name),str(p.cp),p.ivPercent))
-    print('{0:<15} {1:^20} {2:>15}'.format('------------','May be transfered','------------'))
-    print('{0:<10} {1:<6} {2:<10}'.format('[pokemon]','[cp]','[iv]'))
-    for p in extras:
-        print('{0:<10} {1:<6} {2:<8.2%}'.format(str(p.name),str(p.cp),p.ivPercent))
+    if best:
+        print('{0:<15} {1:^20} {2:>15}'.format('------------','Highest IV Pokemon','------------'))
+        print('{0:<10} {1:<6} {2:<10}'.format('[pokemon]','[cp]','[iv]'))
+        for p in best:
+            print('{0:<10} {1:<6} {2:<8.2%}'.format(str(p.name),str(p.cp),p.ivPercent))
+    if extras:    
+        print('{0:<15} {1:^20} {2:>15}'.format('------------','May be transfered','------------'))
+        print('{0:<10} {1:<6} {2:<10}'.format('[pokemon]','[cp]','[iv]'))
+        for p in extras:
+            print('{0:<10} {1:<6} {2:<8.2%}'.format(str(p.name),str(p.cp),p.ivPercent))
     
     uniques = get_unique_counts(pokemon)
     evolves = get_evolve_counts(pokemon)
     needed = get_needed_counts(pokemon, uniques, evolves)
-    print('{0:<15} {1:^20} {2:>15}'.format('------------','Available evolutions','------------'))
-    print('{0:<15} {1:^20} {2:>15}'.format('------------','TOTAL: '+str(evolves["total"])+' / '+config.max_evolutions,'------------'))
-    print('{0:<10} {1:<25} {2:<10} {3:<10}'.format('[pokemon]','[# of evolutions possible]','[# in inventory]','[# needed]'))
+    if any(evolves):
+        print('{0:<15} {1:^20} {2:>15}'.format('------------','Available evolutions','------------'))
+        print('{0:<15} {1:^20} {2:>15}'.format('------------','TOTAL: '+str(evolves["total"])+' / '+config.max_evolutions,'------------'))
+        print('{0:<10} {1:<25} {2:<10} {3:<10}'.format('[pokemon]','[# of evolutions possible]','[# in inventory]','[# needed]'))
     for p in pokemon:
         id = str(p.number)
-        if id in evolves.keys():			
+        if id in evolves.keys():
             print('{0:<10} {1:<5} {2:<5} {3:<5}'.format(str(p.name),evolves[id],uniques[id],needed[id]))
 	
 	# evolve all t1 pokemon
@@ -205,13 +183,19 @@ def main():
                     count += 1
                     time.sleep(int(config.evolution_delay))
 	
-    # release extras
+    # transfer extras
+    #sort by iv ascending
+    extras.sort(key=lambda x: x.iv)
     if config.transfer:
         for p in extras:
-            print('{0:<30} {1:<5} {2:<8.2%}'.format('removing pokemon: '+str(p.name),str(p.cp),p.ivPercent))
-            api.release_pokemon(pokemon_id = p.id)
-            api.call()
-            time.sleep(int(transfer_delay))
+            id = str(p.number)
+            #if there are more of this pokemon than can be evolved
+            if id not in evolves.keys() or id not in uniques.keys() or uniques[id] > evolves[id]:
+                print('{0:<30} {1:<5} {2:<8.2%}'.format('transferring pokemon: '+str(p.name),str(p.cp),p.ivPercent))
+                api.release_pokemon(pokemon_id = p.id)
+                api.call()
+                uniques[id] = uniques[id] - 1 #we now have one fewer of these...
+                time.sleep(int(config.transfer_delay))
 
 def get_needed_counts(pokemon, uniques, evolves):
     needed = dict()
@@ -318,6 +302,3 @@ def get_best_pokemon(pokemon, ivmin):
 
 if __name__ == '__main__':
     main()
-
-		
-	
