@@ -79,6 +79,7 @@ def init_config():
     parser.add_argument("-me", "--max_evolutions", help="Maximum number of evolutions in one pass")
     parser.add_argument("-ed", "--evolution_delay", help="delay between evolutions in seconds")
     parser.add_argument("-td", "--transfer_delay", help="delay between transfers in seconds")
+    parser.add_argument("-hm", "--hard_minimum", help="transfer candidates will be selected if they are below minimumIV (will transfer unique pokemon)", action="store_true")
     parser.set_defaults(DEBUG=False, TEST=False, EVOLVE=False)
     config = parser.parse_args()
 	  
@@ -136,7 +137,11 @@ def main():
         print('You have no pokemon...')
         return
     # highest IV pokemon
-    best = get_best_pokemon(pokemon, float(config.minimumIV))
+    best = []
+    if config.hard_minimum:
+        best = get_above_iv(pokemon, float(config.minimumIV))
+    else:
+        best = get_best_pokemon(pokemon, float(config.minimumIV))
     # rest of pokemon
     extras = list(set(pokemon) - set(best))
     if best:
@@ -281,6 +286,20 @@ def get_pokemon(response_dict):
         d.candy = candy[str(d.family)]
     
     return data
+
+def get_above_iv(pokemon, ivmin):
+    if len(pokemon) == 0:
+        return []
+    best = []
+    
+    #sort by iv
+    pokemon.sort(key=lambda x: x.iv, reverse=True)
+    for p in pokemon:
+        #if it passes the minimum iv test
+        if p.iv >= float(ivmin):			
+            best.append(p)
+
+    return best
 
 def get_best_pokemon(pokemon, ivmin):
     if len(pokemon) == 0:
