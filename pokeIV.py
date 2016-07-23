@@ -91,18 +91,21 @@ def init_config():
     if os.path.isfile(config_file):
         with open(config_file) as data:
             load.update(json.load(data))
-
+    
     # Read passed in Arguments
     required = lambda x: not x in load
     parser.add_argument("-a", "--auth_service", help="Auth Service ('ptc' or 'google')",required=required("auth_service"))
     parser.add_argument("-u", "--username", help="Username", required=required("username"))
     parser.add_argument("-p", "--password", help="Password")
-    parser.add_argument("-c", "--clean", help="Transfers all but the highest of each pokemon (see -ivmin)", action="store_true")
-    parser.add_argument("-m", "--min", help="All pokemon equal to or above this IV value are kept regardless of duplicates")
+    parser.add_argument("-t", "--transfer", help="Transfers all but the highest of each pokemon (see -ivmin)", action="store_true")
     parser.add_argument("-e", "--evolve", help="Evolves as many T1 pokemon that it can (starting with highest IV)", action="store_true")
-    parser.set_defaults(DEBUG=False, TEST=False)
+    parser.add_argument("-m", "--minimumIV", help="All pokemon equal to or above this IV value are kept regardless of duplicates")
+    parser.add_argument("-me", "--max_evolutions", help="Maximum number of evolutions in one pass")
+    parser.add_argument("-ed", "--evolution_delay", help="delay between evolutions in seconds")
+    parser.add_argument("-td", "--transfer_delay", help="delay between transfers in seconds")
+    parser.set_defaults(DEBUG=False, TEST=False, EVOLVE=False)
     config = parser.parse_args()
-
+	  
     # Passed in arguments shoud trump
     for key in config.__dict__:
         if key in load and config.__dict__[key] == None:
@@ -113,8 +116,17 @@ def init_config():
         config.__dict__["password"] = getpass.getpass()
 
     if config.auth_service not in ['ptc', 'google']:
-      log.error("Invalid Auth service specified! ('ptc' or 'google')")
-      return None
+        log.error("Invalid Auth service specified! ('ptc' or 'google')")
+        return None
+        
+    if config.__dict__["minimumIV"] is None:
+        config.__dict__["minimumIV"] = "101"
+    if config.__dict__["max_evolutions"] is None:
+        config.__dict__["max_evolutions"] = "71"
+    if config.__dict__["evolution_delay"] is None:
+        config.__dict__["evolution_delay"] = "25"
+    if config.__dict__["transfer_delay"] is None:
+		config.__dict__["transfer_delay"] = "10"
 
     return config
 	
@@ -148,7 +160,7 @@ def main():
 		print('You have no pokemon...')
 		return
     # highest IV pokemon
-    best = get_best_pokemon(pokemon, config.min if config.min is not None else 101)
+    best = get_best_pokemon(pokemon, float(config.minimumIV))
     # rest of pokemon
     extras = list(set(pokemon) - set(best))
     
@@ -165,7 +177,7 @@ def main():
     evolves = get_evolve_counts(pokemon)
     needed = get_needed_counts(pokemon, uniques, evolves)
     print('{0:<15} {1:^20} {2:>15}'.format('------------','Available evolutions','------------'))
-    print('{0:<15} {1:^20} {2:>15}'.format('------------','TOTAL: '+str(evolves["total"])+' / 70','------------'))
+    print('{0:<15} {1:^20} {2:>15}'.format('------------','TOTAL: '+str(evolves["total"])+' / '+config.max_evolutions,'------------'))
     print('{0:<10} {1:<25} {2:<10} {3:<10}'.format('[pokemon]','[# of evolutions possible]','[# in inventory]','[# needed]'))
     for p in pokemon:
         id = str(p.number)
@@ -178,7 +190,7 @@ def main():
         pokemon.sort(key=lambda x: x.iv, reverse=True)
         evolved = True
         count = 0
-        while evolved and count < 70:
+        while evolved and count < int(config.max_evolutions):
             evolved = False
             for p in pokemon[:]:
                 id = str(p.number)
@@ -191,15 +203,15 @@ def main():
                     pokemon.remove(p)
                     evolved = True
                     count += 1
-                    time.sleep(25)
+                    time.sleep(int(config.evolution_delay))
 	
     # release extras
-    if config.clean:
+    if config.transfer:
         for p in extras:
             print('{0:<30} {1:<5} {2:<8.2%}'.format('removing pokemon: '+str(p.name),str(p.cp),p.ivPercent))
             api.release_pokemon(pokemon_id = p.id)
             api.call()
-            time.sleep(10)
+            time.sleep(int(transfer_delay))
 
 def get_needed_counts(pokemon, uniques, evolves):
     needed = dict()
