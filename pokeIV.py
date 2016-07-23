@@ -131,6 +131,7 @@ def main():
     api.get_inventory()
     # execute the RPC call to get all pokemon and their stats
     response_dict = api.call()
+    response_dict = dict([(str(k), str(v)) for k, v in response_dict.items()])
     # all pokemon_data entries
     pokemon = get_pokemon(response_dict)
     if len(pokemon) == 0:
