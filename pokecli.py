@@ -152,7 +152,7 @@ def main():
     api = pgoapi.PGoApi()
 
     # provide player position on the earth
-    api.set_position(*position)
+    #api.set_position(*position)
 
     if not api.login(config.auth_service, config.username, config.password):
         return
